@@ -1,4 +1,4 @@
-This is rewoork of https://github.com/andrewgabler/VolvoDIMLib volvdimlibrary
+This is rework of https://github.com/andrewgabler/VolvoDIMLib volvdimlibrary
 
 
 reworked things/added
