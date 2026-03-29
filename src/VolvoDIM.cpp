@@ -19,14 +19,13 @@ int genCnt = 0;
 int cnt = 0;
 constexpr int listLen = 14;
 char* customTextMessage = "";
-int startUpWait = 20;
+int startUpWait = 0;
 int customMessageCnt = 0, customTextChanged = 0;
 int mileageCounter = 0, mileagePace = 0, genSpeed = 0;
 int mileageEnabled = 0;
 int carConCnt = 0;
 int configCnt = 0;
 int blinkerInterval = 0;
-bool leftBlinker = false, rightBlinker = false, solidState = false;
 unsigned char stmp[8] = {0, 0, 0, 0, 0, 0, 0, 0};
 unsigned long address;
 constexpr int arrSpeed = 0, arrRpm = 1, arrCoolant = 2, arrTime = 3, arrBrakes = 4, arrBlinker = 5, arrAntiSkid = 6, arrAirbag = 7, arr4c = 8, arrConfig = 9, arrGear = 10, arrTrailer = 11, arrDmWindow = 12, arrDmMessage = 13;
@@ -49,7 +48,7 @@ constexpr unsigned long addrLi[listLen] = {0x217FFC, 0x2803008, 0x3C01428, 0x381
 */
 
 unsigned char defaultData[listLen][8] = {
-	{0x01, 0xEB, 0x00, 0xD8, 0xF0, 0x58, 0x00, 0x00}, // 0, Speed/KeepAlive , 0x217FFC
+	{0x01, 0xEB, 0x40, 0xD8, 0xF0, 0x58, 0x00, 0x00}, // 0, Speed/cruise/KeepAlive , 0x217FFC
 	{0xFF, 0xE1, 0xFF, 0xF0, 0xFF, 0xCF, 0x00, 0x00}, // 1, RPM/Backlights , 0x2803008
 	{0xC0, 0x80, 0x51, 0x89, 0x0E, 0x00, 0x00, 0x00}, // 2, Coolant/OutdoorTemp , 0x3C01428
 	{0x00, 0x01, 0x05, 0xBC, 0x05, 0xA0, 0x40, 0x40}, // 3, Time/GasTank , 0x381526C
@@ -89,6 +88,8 @@ void VolvoDIM::sendMsgWrapper(unsigned long wId, unsigned char *wBuf)
 {
 	CAN.sendMsgBuf(wId, 1, 8, wBuf);
 }
+
+
 void VolvoDIM::initSRS()
 {
 	unsigned char temp[8] = {0xC0, 0x0, 0x0, 0x0, 0x0, 0xBC, 0xDB, 0x80};
@@ -203,106 +204,11 @@ void VolvoDIM::genTemp(long address, byte stmp[])
 	sendMsgWrapper(address, stmp);
 	delay(15);
 }
-void VolvoDIM::genBlinking(long address, byte stmp[], bool isBlinking, int interval, int blinkSpeed)
-{
-	int blinkRatio = 7;
-	if (blinkSpeed == 0)
-	{
-		blinkRatio = 5;
-	}
-	else if (blinkSpeed == 2)
-	{
-		blinkRatio = 15;
-	}
-	else if (blinkSpeed == 3)
-	{
-		blinkRatio = 50;
-	}
-	if (isBlinking && (interval % blinkRatio == 0) && !solidState)
-	{
-		int prevState = 0;
-		if (leftBlinker && rightBlinker)
-		{
-			if (defaultData[arrBlinker][7] == 0x0E)
-			{
-				defaultData[arrBlinker][7] = (char)0x08;
-			}
-			else
-			{
-				defaultData[arrBlinker][7] = (char)0x0E;
-			}
-			stmp[7] = defaultData[arrBlinker][7];
-			sendMsgWrapper(address, stmp);
-			delay(15);
-		}
-		else if (!solidState)
-		{
-			if (defaultData[arrBlinker][7] == 0x0A || defaultData[arrBlinker][7] == 0x0C)
-			{
-				prevState = 1;
-			}
-			// blinks left blinker
-			if (leftBlinker)
-			{
-				if (prevState == 1)
-				{
-					defaultData[arrBlinker][7] = (char)0x08;
-				}
-				else
-				{
-					defaultData[arrBlinker][7] = (char)0x0A;
-				}
-				stmp[7] = defaultData[arrBlinker][7];
-				sendMsgWrapper(address, stmp);
-				delay(15);
-			}
-			// blinks right blinker
-			if (rightBlinker)
-			{
-				if (prevState == 1)
-				{
-					defaultData[arrBlinker][7] = (char)0x08;
-				}
-				else
-				{
-					defaultData[arrBlinker][7] = (char)0x0C;
-				}
-				stmp[7] = defaultData[arrBlinker][7];
-				sendMsgWrapper(address, stmp);
-				delay(15);
-			}
-		}
-	}
-	else if (solidState)
-	{
-		if (leftBlinker)
-		{
-			defaultData[arrBlinker][7] = (char)0x0A;
-			stmp[7] = defaultData[arrBlinker][7];
-			sendMsgWrapper(address, stmp);
-			delay(15);
-		}
-		else
-		{
-			defaultData[arrBlinker][7] = (char)0x00;
-			stmp[7] = defaultData[arrBlinker][7];
-			sendMsgWrapper(address, stmp);
-		}
-		if (rightBlinker)
-		{
-			defaultData[arrBlinker][7] = (char)0x0C;
-			stmp[7] = defaultData[arrBlinker][7];
-			sendMsgWrapper(address, stmp);
-			delay(15);
-		}
-		else
-		{
-			defaultData[arrBlinker][7] = (char)0x00;
-			stmp[7] = defaultData[arrBlinker][7];
-			sendMsgWrapper(address, stmp);
-		}
-	}
-}
+
+
+
+
+
 void VolvoDIM::genMileageAndSpeed()
 {
 	if (mileageEnabled == 1 && startUpWait == 0)
@@ -343,6 +249,7 @@ void VolvoDIM::init()
 	}
 	initSRS();
 	init4C();
+
 }
 void VolvoDIM::simulate()
 {
@@ -371,9 +278,6 @@ void VolvoDIM::simulate()
 			genCC(address, stmp);
 		}
 		break;
-	case addrLi[arrBlinker]:
-		genBlinking(address, stmp, true, blinkerInterval, 1);
-		break;
 	case addrLi[arrDmWindow]:
 		// doesn't need to be sent every cycle, send every 4
 		if (cnt % 4 == 0)
@@ -386,12 +290,14 @@ void VolvoDIM::simulate()
 		}
 	case addrLi[arrSpeed]:
 		genMileageAndSpeed();
+
 	default:
 		sendMsgWrapper(address, stmp);
+		sendMsgWrapper(addrLi[arrBlinker], defaultData[arrBlinker]);
 		// delay(15); // send data per 15ms
 	}
 
-	// Increment counters
+
 	cnt++;
 	blinkerInterval++;
 	if(startUpWait > 0){
@@ -413,58 +319,53 @@ void VolvoDIM::simulate()
 
 void VolvoDIM::setTime(int inputTime)
 {
-	if (inputTime >= 0 && inputTime <= 1440)
-	{
-		int b4;
-		for (int i = 0; i < 6; i++)
-		{
-			if (inputTime >= (i * 256) && inputTime < ((i + 1) * 256))
-			{
-				b4 = i;
-			}
-		}
-		int b5 = inputTime - (b4 * 256);
-		defaultData[arrTime][4] = b4;
-		defaultData[arrTime][5] = b5;
-	}
-	else
-	{
-		if (enableSerialErrMsg)
-		{
-			// SERIAL.println("Not a valid time");
-		}
-	}
+    if (inputTime >= 0 && inputTime <= 1440)
+    {
+        int b4 = 0;
+        for (int i = 0; i < 6; i++)
+        {
+            if (inputTime >= (i * 256) && inputTime < ((i + 1) * 256))
+            {
+                b4 = i;
+            }
+        }
+        int b5 = inputTime - (b4 * 256);
+        
+        // Save the current state of the Battery Light!
+        unsigned char batteryBit = defaultData[arrTime][4] & 0x10; 
+        
+        // Merge the clock math with the battery light
+        defaultData[arrTime][4] = b4 | batteryBit;
+        defaultData[arrTime][5] = b5;
+    }
+    else
+    {
+        if (enableSerialErrMsg)
+        {
+            // SERIAL.println("Not a valid time");
+        }
+    }
 }
-int VolvoDIM::clockToDecimal(int hour, int minute, int AM)
+int VolvoDIM::clockToDecimal(int hour, int minute)
 {
-	if ((hour >= 0 && hour <= 12) && (minute >= 0 && minute < 60) && (AM == 1 || AM == 0))
-	{
-		if (AM)
-		{
-			if (hour == 12)
-			{
-				return (minute);
-			}
-			else
-			{
-				return ((hour * 60) + minute);
-			}
-		}
-		return ((hour * 60) + minute) + 720;
-	}
-	else
-	{
-		if (enableSerialErrMsg)
-		{
-			// SERIAL.println("Not a valid time");
-		}
-		return 0;
-	}
+    if (hour >= 0 && hour < 24 && minute >= 0 && minute < 60)
+    {
+        return (hour * 60) + minute;
+    }
+    else
+    {
+        if (enableSerialErrMsg)
+        {
+            // SERIAL.println("invalid time");
+        }
+        return 0;
+    }
 }
 double VolvoDIM::celsToFahr(double temp)
 {
-	return ((temp * (9 / 5)) + 32);
+  return ((temp * (9.0 / 5.0)) + 32.0);
 }
+
 void VolvoDIM::setOutdoorTemp(int oTemp)
 {
 	if (!(oTemp < -49 || oTemp > 176))
@@ -513,40 +414,10 @@ void VolvoDIM::setCoolantTemp(int range)
 		}
 	}
 }
-void VolvoDIM::setSpeed(int carSpeed)
-{
-	genSpeed = carSpeed;
-	if (carSpeed >= 0 && carSpeed <= 160)
-	{
-		if (carSpeed >= 0 && carSpeed <= 40)
-		{
-			defaultData[arrSpeed][5] = (char)0x58;
-			defaultData[arrSpeed][6] = round(carSpeed * 6.375);
-		}
-		else if (carSpeed > 40 && carSpeed <= 80)
-		{
-			defaultData[arrSpeed][5] = (char)0x59;
-			defaultData[arrSpeed][6] = round(carSpeed * 6.375);
-		}
-		else if (carSpeed > 80 && carSpeed <= 120)
-		{
-			defaultData[arrSpeed][5] = (char)0x5A;
-			defaultData[arrSpeed][6] = round(carSpeed * 6.375);
-		}
-		else if (carSpeed > 120 && carSpeed <= 160)
-		{
-			defaultData[arrSpeed][5] = (char)0x5B;
-			defaultData[arrSpeed][6] = round(carSpeed * 6.375);
-		}
-	}
-	else
-	{
-		if (enableSerialErrMsg)
-		{
-			// SERIAL.println("Speed out of range");
-		}
-	}
-}
+
+
+
+
 void VolvoDIM::setGasLevel(int level)
 {
 	if (level >= 0 && level <= 100)
@@ -564,7 +435,7 @@ void VolvoDIM::setGasLevel(int level)
 }
 void VolvoDIM::setRpm(int rpm)
 {
-	if (rpm > 501 && rpm <= 8000)
+	if (rpm > 0 && rpm <= 8000)
 	{
 		defaultData[arrRpm][6] = floor((rpm * .031875) / 32) * 32 + floor((rpm * .031875) / 8);
 	}
@@ -576,114 +447,166 @@ void VolvoDIM::setRpm(int rpm)
 		}
 	}
 }
-void VolvoDIM::setOverheadBrightness(int value)
+
+
+void VolvoDIM::setSpeed(int carSpeed)
 {
-	if (value >= 0 && value <= 256)
-	{
-		if (value == 256)
-		{
-			value = 255;
-		}
-		defaultData[arrRpm][2] = value;
-	}
-	else
-	{
-		if (enableSerialErrMsg)
-		{
-			// SERIAL.println("Value out of range");
-		}
-	}
+    genSpeed = carSpeed;
+    
+    // Check if Cruise Control is currently ON (Is bit 7 active?)
+    unsigned char isCruiseOn = defaultData[arrSpeed][5] & 0x80; 
+    
+    // Set the base byte depending on the Cruise state
+    unsigned char baseByte;
+    if (isCruiseOn) {
+        baseByte = 0x90; // Cruise is ON
+    } else {
+        baseByte = 0x50; // Cruise is OFF
+    }
+    
+    if (carSpeed >= 0 && carSpeed <= 160)
+    {
+        if (carSpeed >= 0 && carSpeed <= 40)
+        {
+            defaultData[arrSpeed][5] = baseByte | 0x08; // Becomes 0x58 or 0x98
+            defaultData[arrSpeed][6] = round(carSpeed * 6.375);
+        }
+        else if (carSpeed > 40 && carSpeed <= 80)
+        {
+            defaultData[arrSpeed][5] = baseByte | 0x09; // Becomes 0x59 or 0x99
+            defaultData[arrSpeed][6] = round(carSpeed * 6.375);
+        }
+        else if (carSpeed > 80 && carSpeed <= 120)
+        {
+            defaultData[arrSpeed][5] = baseByte | 0x0A; // Becomes 0x5A or 0x9A
+            defaultData[arrSpeed][6] = round(carSpeed * 6.375);
+        }
+        else if (carSpeed > 120 && carSpeed <= 160)
+        {
+            defaultData[arrSpeed][5] = baseByte | 0x0B; // Becomes 0x5B or 0x9B
+            defaultData[arrSpeed][6] = round(carSpeed * 6.375);
+        }
+    }
 }
-void VolvoDIM::setLcdBrightness(int value)
+
+
+void VolvoDIM::enableCruise(int enabled)
 {
-	if (value >= 0 && value <= 256)
-	{
-		if (value > 250)
-		{
-			value = 0x3F;
-		}
-		else
-		{
-			value = round(value / 32);
-		}
-		defaultData[arrRpm][4] = value;
-	}
-	else
-	{
-		if (enableSerialErrMsg)
-		{
-			// SERIAL.println("Value out of range");
-		}
-	}
+    if (enabled == 1) {
+        // TURN CRUISE ON: 3-Key Master Code
+        defaultData[arrSpeed][0] |= 0x06; // Engine Armed (0x07)
+        
+        // Switch upper nibble of Byte 5 from '5' to '9'
+        defaultData[arrSpeed][5] &= ~0x40; // Turn OFF bit 6
+        defaultData[arrSpeed][5] |= 0x80;  // Turn ON bit 7
+        
+    } else {
+        // TURN CRUISE OFF
+        defaultData[arrSpeed][0] &= ~0x06; // Engine Disarmed (0x05)
+        // Switch upper nibble of Byte 5 from '9' back to '5'
+        defaultData[arrSpeed][5] |= 0x40;  // Turn ON bit 6
+        defaultData[arrSpeed][5] &= ~0x80; // Turn OFF bit 7
+    }
 }
+
+
+
 void VolvoDIM::setTotalBrightness(int value)
 {
-	if (value >= 0 && value <= 256)
-	{
-		if (value == 256)
-		{
-			value = 255;
-		}
-		setLcdBrightness(value);
-		setOverheadBrightness(value);
-	}
-	else
-	{
-		if (enableSerialErrMsg)
-		{
-			// SERIAL.println("Value out of range");
-		}
-	}
+    if (value < 0)
+        value = 0;
+    else if (value > 255)
+        value = 255;
+    defaultData[arrRpm][2] = value;
+    int byte3 = 0x30 + static_cast<int>((value * 15.0f / 255.0f) + 0.5f);
+    defaultData[arrRpm][3] = byte3;
+    int byte4 = 0x30 + static_cast<int>((value * 13.0f / 255.0f) + 0.5f);
+    defaultData[arrRpm][4] = byte4;
 }
-void VolvoDIM::setLeftBlinker(int state)
-{
-	bool setState = false;
-	if (state == 1)
-	{
-		setState = true;
-		defaultData[arrBlinker][7] = (char)0x0A;
-	}
-	else
-	{
-		defaultData[arrBlinker][7] = (char)0x0;
-	}
 
-	leftBlinker = setState;
+void VolvoDIM::enableHighBeam(int enabled) {
+  if (enabled == 1)
+    defaultData[arrRpm][1] = 0xFF;
+  else
+    defaultData[arrRpm][1] = 0xEA;
 }
-void VolvoDIM::setRightBlinker(int state)
-{
-	bool setState = false;
-	if (state == 1)
-	{
-		setState = true;
-		defaultData[arrBlinker][7] = (char)0x0C;
-	}
-	else
-	{
-		defaultData[arrBlinker][7] = (char)0x0;
-	}
-	rightBlinker = setState;
-}
-void VolvoDIM::setLeftBlinkerSolid(int state)
-{
-	bool val = false;
-	if (state == 1)
-	{
-		val = true;
-	}
 
-	solidState = val;
-	leftBlinker = val;
-}
-void VolvoDIM::setRightBlinkerSolid(int state)
+
+void VolvoDIM::enableBattery(int enabled) 
 {
-	bool val = false;
-	if (state == 1)
-	{
-		val = true;
-	}
-	solidState = val;
-	rightBlinker = val;
+  if (enabled == 1) {
+    // Turn Battery Light ON: Force Bit 4 (0x10) to 1
+    defaultData[arrTime][4] |= 0x10; 
+  } else {
+    // Turn Battery Light OFF: Return Bit 4 (0x10) to 0
+    defaultData[arrTime][4] &= ~0x10; 
+  }
+}
+
+
+void VolvoDIM::enableFlashingTC(int enabled) 
+{
+  if (enabled == 1) {
+    // Turn Flashing TC ON: Drop Bit 7 (0x80) to 0
+    defaultData[arrSpeed][3] &= ~0x80; 
+  } else {
+    // Turn Flashing TC OFF: Return Bit 7 (0x80) to 1
+    defaultData[arrSpeed][3] |= 0x80; 
+  }	
+}
+
+void VolvoDIM::enableFlashingABS(int enabled) 
+{
+  if (enabled == 1) {
+    // Turn Flashing ABS ON: Drop Bit 5 (0x20) to 0
+    defaultData[arrBrakes][4] &= ~0x20; 
+  } else {
+    // Turn Flashing ABS OFF: Return Bit 5 (0x20) to 1
+    defaultData[arrBrakes][4] |= 0x20; 
+  }
+}
+
+void VolvoDIM::enableABS(int enabled) 
+{
+  if (enabled == 1) {
+    defaultData[arrBrakes][2] &= ~0x10; 
+  } else {
+    defaultData[arrBrakes][2] |= 0x10; 
+  }
+}
+
+void VolvoDIM::enableTC(int enabled) 
+{
+  if (enabled == 1)
+    defaultData[arrAntiSkid][1] &= ~0x20; 
+  else
+    defaultData[arrAntiSkid][1] |= 0x20; 
+}
+
+
+void VolvoDIM::enableOil(int enabled) 
+{
+  if (enabled == 1) {
+    defaultData[arrGear][1] |= 0x20; 
+  } else {
+    defaultData[arrGear][1] &= ~0x20; 
+  }
+}
+
+void VolvoDIM::enableFog(int enabled)
+{
+  if (enabled == 1)
+    defaultData[arr4c][2] = 0xE6;
+  else
+    defaultData[arr4c][2] = 0x00;
+}
+
+void VolvoDIM::enableBrake(int enabled)
+{
+  if (enabled == 1)
+    defaultData[arrBrakes][3] = 0x00;
+  else
+    defaultData[arrBrakes][3] = 0x60;
 }
 
 void VolvoDIM::setGearPosText(const char *gear)
@@ -820,148 +743,8 @@ void VolvoDIM::enableTrailer(int enabled)
 	}
 }
 
-void VolvoDIM::setError(int error)
-{
-	if (error == 1)
-	{
-		// Engine system service required orange light
-		defaultData[arrGear][3] = (char)0x10;
-	}
-	else if (error == 2)
-	{
-		// reduced brake performance orange light
-		defaultData[arrGear][3] = (char)0x30;
-	}
-	else if (error == 3)
-	{
-		// Fuel filler cap open-loose
-		defaultData[arrGear][3] = (char)0x40;
-	}
-	else if (error == 4)
-	{
-		// Engine System Servcie urgent red
-		defaultData[arrGear][3] = (char)0x80;
-	}
-	else if (error == 5)
-	{
-		// Engine System Servcie Urgent red light
-		defaultData[arrGear][3] = (char)0x90;
-	}
-	else if (error == 6)
-	{
-		// reduced brake performance red light
-		defaultData[arrGear][3] = (char)0xAA;
-	}
-	else if (error == 7)
-	{
-		// reduced engine performance red light
-		defaultData[arrGear][3] = (char)0xBB;
-	}
-	else if (error == 8)
-	{
-		// slow down or shift up orange
-		defaultData[arrGear][3] = (char)0x01;
-	}
-	else if (error == 9)
-	{
-		// reduced engine performance orange light
-		defaultData[arrGear][3] = (char)0x0E;
-	}
-	else if (error == 9)
-	{
-		// slow down or shift up red
-		defaultData[arrGear][3] = (char)0xDD;
-	}
-}
 
-void VolvoDIM::engineServiceRequiredOrange(int on)
-{
-	if (on == 1)
-	{
-		defaultData[arrGear][3] = (char)0x10;
-	}
-	else
-	{
-		defaultData[arrGear][3] = (char)0x00;
-	}
-}
-void VolvoDIM::reducedBrakePerformanceOrange(int on)
-{
-	if (on == 1)
-	{
-		defaultData[arrGear][3] = (char)0x30;
-	}
-	else
-	{
-		defaultData[arrGear][3] = (char)0x00;
-	}
-}
-void VolvoDIM::fuelFillerCapLoose(int on)
-{
-	if (on == 1)
-	{
-		defaultData[arrGear][3] = (char)0x40;
-	}
-	else
-	{
-		defaultData[arrGear][3] = (char)0x00;
-	}
-}
-void VolvoDIM::engineSystemServiceUrgentRed(int on)
-{
-	if (on == 1)
-	{
-		defaultData[arrGear][3] = (char)0x90;
-	}
-	else
-	{
-		defaultData[arrGear][3] = (char)0x00;
-	}
-}
-void VolvoDIM::brakePerformanceReducedRed(int on)
-{
-	if (on == 1)
-	{
-		defaultData[arrGear][3] = (char)0xAA;
-	}
-	else
-	{
-		defaultData[arrGear][3] = (char)0x00;
-	}
-}
-void VolvoDIM::reducedEnginePerformanceRed(int on)
-{
-	if (on == 1)
-	{
-		defaultData[arrGear][3] = (char)0xBB;
-	}
-	else
-	{
-		defaultData[arrGear][3] = (char)0x00;
-	}
-}
-void VolvoDIM::slowDownOrShiftUpOrange(int on)
-{
-	if (on == 1)
-	{
-		defaultData[arrGear][3] = (char)0x01;
-	}
-	else
-	{
-		defaultData[arrGear][3] = (char)0x00;
-	}
-}
-void VolvoDIM::reducedEnginePerformanceOrange(int on)
-{
-	if (on == 1)
-	{
-		defaultData[arrGear][3] = (char)0x0E;
-	}
-	else
-	{
-		defaultData[arrGear][3] = (char)0x00;
-	}
-}
+
 
 void VolvoDIM::setCustomText(const char* text) {
 	customTextMessage = text;
@@ -1047,11 +830,23 @@ void VolvoDIM::gaugeReset()
 }
 void VolvoDIM::sweepGauges()
 {
-	setRpm(8000);
-	setSpeed(160);
-	delay(500);
-	setRpm(0);
-	setSpeed(0);
+    setRpm(8000);
+    setSpeed(160); 
+    delay(500);
+    setRpm(0);
+    setSpeed(0);
+}
+
+void VolvoDIM::setBlinker(int right, int left, int hazard) {
+  // Priority: hazard > right > left
+  if (hazard == 1 || (right == 1 && left == 1))
+    defaultData[arrBlinker][7] = 0x0E;
+  else if (right == 1)
+    defaultData[arrBlinker][7] = 0x0C;
+  else if (left == 1)
+    defaultData[arrBlinker][7] = 0x0A;
+  else
+    defaultData[arrBlinker][7] = 0x08;
 }
 void VolvoDIM::enableSerialErrorMessages()
 {
@@ -1061,3 +856,4 @@ void VolvoDIM::disableSerialErrorMessages()
 {
 	enableSerialErrMsg = false;
 }
+

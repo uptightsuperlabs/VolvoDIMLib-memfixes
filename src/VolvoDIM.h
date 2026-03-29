@@ -15,32 +15,17 @@ class VolvoDIM
     public:
         VolvoDIM(int SPI_CS_PIN, int relayPin=0);
         void setTime(int inputTime);
-        int clockToDecimal(int hour, int minute, int AM); 
+        int clockToDecimal(int hour, int minute); 
         double celsToFahr(double temp);
-        void setOutdoorTemp(int oTemp);
+        void setOutdoorTemp(int oTempCelsius);
         void setCoolantTemp(int range);
         void setSpeed(int carSpeed);
         void setGasLevel(int level);
         void setRpm(int rpm);
-        void setOverheadBrightness(int value);
-        void setLcdBrightness(int value);
         void setTotalBrightness(int value);
-        void setLeftBlinker(int state);
-        void setRightBlinker(int state);
-        void setLeftBlinkerSolid(int state);
-        void setRightBlinkerSolid(int state);
         void setGearPosText(const char* gear);
         void setGearPosInt(int gear);
         void enableTrailer(int enabled);
-        void setError(int error);
-        void engineServiceRequiredOrange(int on);
-        void reducedBrakePerformanceOrange(int on);
-        void fuelFillerCapLoose(int on);
-        void engineSystemServiceUrgentRed(int on);
-        void brakePerformanceReducedRed(int on);
-        void reducedEnginePerformanceRed(int on);
-        void slowDownOrShiftUpOrange(int on);
-        void reducedEnginePerformanceOrange(int on);
         void setCustomText(const char* text);
         void init();
         void simulate();
@@ -52,7 +37,17 @@ class VolvoDIM
         void disableSerialErrorMessages();
         void enableMilageTracking(int on);
         void enableDisableDingNoise(int on);
-
+        void enableFog(int enabled);
+        void enableBrake(int enabled);
+        void enableHighBeam(int enabled);
+        void setBlinker(int right, int left, int hazard);
+        void enableABS(int enabled);
+        void enableTC(int enabled);
+        void enableOil(int enabled);
+        void enableCruise(int enabled);
+        void enableBattery(int enabled);
+        void enableFlashingTC(int enabled);
+        void enableFlashingABS(int enabled);
     private:
         void sendMsgWrapper(unsigned long wId, unsigned char* wBuf);
         void initSRS();
@@ -60,7 +55,6 @@ class VolvoDIM
         void init4C();
         void genCC(long address, byte stmp[]);
         void genTemp(long address, byte stmp[]);
-        void genBlinking(long address, byte stmp[], bool isBlinking, int interval, int blinkSpeed);
         void genCustomText(const char* text);
         void clearCustomText();
         void genMileageAndSpeed();
