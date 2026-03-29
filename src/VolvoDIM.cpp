@@ -1,6 +1,8 @@
 /*
   VolvoDIM.cpp - Library for powering and controlling a P2 Volvo DIM.
   Created by Andrew J. Gabler, August 17, 2021.
+
+Reworked by Mikael R, March 29, 2026.
 */
 #include "VolvoDIM.h"
 #ifdef ARDUINO_SAMD_VARIANT_COMPLIANCE
