@@ -19,3 +19,7 @@ reworked things/added
 14. removed genblinking no need because of the new blinker system
 15. modified setTime to work with battery light so it does not conflict
 16. modified clocktodecimal void to work with 24 hour too
+17. added parkign brake function needs own relay and connectin groudn to pin5  on cluster
+18. added engine light needs own relay and connectin ground to pin2  on cluster
+19. modified car default data clusters from manual car things know they are automatic and gear pos screen is working
+20. modified simulate part earlier cluster rejected carconfig defuaslt data because it so slow so the cluster didnt got any changes never
