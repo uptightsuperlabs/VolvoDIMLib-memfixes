@@ -1,3 +1,13 @@
+if([DataCorePlugin.CurrentGame]='ATS' or [DataCorePlugin.CurrentGame]='ETS2', 
+    if([GameRawData.TruckValues.CurrentValues.MotorValues.BrakeValues.ParkingBrake]=true, '1', '0'), 
+    if([DataCorePlugin.CurrentGame]='BeamNgDrive',
+        if(replace(isnull([GameRawData.ShowLights], ''), 'DL_PARKINGBRAKE', '') != isnull([GameRawData.ShowLights], ''), '1', '0'),
+        '0'
+    )
+)+ ','+
+
+('0')+ ',' + 
+
 if([DataCorePlugin.CurrentGame]='ATS' or [DataCorePlugin.CurrentGame]='ETS2', if([DataCorePlugin.GameRawData.TruckValues.CurrentValues.DashboardValues.CruiseControl], '1', '0'), '0') + ',' + 
 
 if([DataCorePlugin.CurrentGame]='BeamNgDrive', if(replace(isnull([GameRawData.ShowLights], ''), 'DL_ABS', '') != isnull([GameRawData.ShowLights], ''), '1', '0'), if([DataCorePlugin.GameData.ABSActive], '1', '0')) + ',' + 

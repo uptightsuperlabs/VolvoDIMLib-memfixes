@@ -4,7 +4,7 @@
 #include <Arduino.h>
 #include <VolvoDIM.h>
 
-VolvoDIM VolvoDIM(9,6);
+VolvoDIM VolvoDIM(9,6,7,8);
 int totalBlink = 0,innerLeftBlink = 0, innerRightBlink = 0;
 class SHCustomProtocol {
 private:
@@ -46,6 +46,8 @@ public:
 
   // Called when new data is coming from computer
   void read() { 
+    int parkBrake = FlowSerialReadStringUntil(',').toInt();
+    int engineLight = FlowSerialReadStringUntil(',').toInt();
     int cruiseLight = FlowSerialReadStringUntil(',').toInt();
     int flashingABS = FlowSerialReadStringUntil(',').toInt();
     int flashingTC = FlowSerialReadStringUntil(',').toInt();
@@ -92,6 +94,8 @@ public:
     VolvoDIM.enableFlashingABS(flashingABS);
     VolvoDIM.enableBattery(batLight);
     VolvoDIM.enableCruise(cruiseLight);
+    VolvoDIM.enableParkingBrake(parkBrake);
+    VolvoDIM.enableEngineLight(engineLight);
 
     }
 
