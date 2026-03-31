@@ -41,6 +41,9 @@ int startUpWait = 0;
 int customMessageCnt = 0, customTextChanged = 0;
 int mileageCounter = 0, mileagePace = 0, genSpeed = 0;
 int mileageEnabled = 0;
+#define CALIBRATION_FACTOR 830.0
+unsigned long lastUpdateTimeGlobal = 0;
+float mileageAccumulatorGlobal = 0.0;
 int carConCnt = 0;
 int configCnt = 0;
 int blinkerInterval = 0;
@@ -88,7 +91,6 @@ unsigned char defaultData[listLen][8] = {
 unsigned char carConfigData[16][8] = {
 	{0x10, 0x30, 0x01, 0x02, 0x01, 0x03, 0x00, 0x02}, // modified default config data to from mnaual to automatic gearbox gear screen works now
 
-
 	//original code
 	{0x11, 0x18, 0x05, 0x05, 0x02, 0x03, 0x01, 0x05},
 	{0x12, 0x03, 0x02, 0x02, 0x01, 0x02, 0x05, 0x01},
@@ -135,6 +137,7 @@ void VolvoDIM::initSRS()
 	temp[0] = (char)0x80;
 	sendMsgWrapper(tempAddr, temp);
 }
+
 void VolvoDIM::genSRS(long address, byte stmp[])
 {
 	int randomNum = random(0, 794);
@@ -157,6 +160,7 @@ void VolvoDIM::genSRS(long address, byte stmp[])
 	sendMsgWrapper(address, stmp);
 	delay(15);
 }
+
 void VolvoDIM::init4C()
 {
 	unsigned char temp[8] = {0x09, 042, 0x0, 0x0, 0x0, 0x50, 0x00, 0x00};
@@ -171,6 +175,7 @@ void VolvoDIM::init4C()
 	temp[0] = (char)0x0B;
 	sendMsgWrapper(tempAddr, temp);
 }
+
 void VolvoDIM::genCC(long address, byte stmp[])
 {
 	int randomNum = random(0, 7);
@@ -182,6 +187,7 @@ void VolvoDIM::genCC(long address, byte stmp[])
 	sendMsgWrapper(address, stmp);
 	delay(15);
 }
+
 void VolvoDIM::genTemp(long address, byte stmp[])
 {
 	int randomNum = random(0, 133);
@@ -234,38 +240,46 @@ void VolvoDIM::genTemp(long address, byte stmp[])
 	delay(15);
 }
 
-
-
-
-
-void VolvoDIM::genMileageAndSpeed()
-{
-	if (mileageEnabled == 1 && startUpWait == 0)
-	{
-		mileagePace += genSpeed;
-		if (mileagePace >= 200)
-		{
-			mileageCounter++;
-			mileagePace -= 200;
-		}
-		defaultData[arrSpeed][7] = mileageCounter;
-		if (mileageCounter > 255)
-		{
-			mileageCounter = 0;
-		}
-	}
-	sendMsgWrapper(addrLi[arrSpeed], defaultData[arrSpeed]);
+void VolvoDIM::genMileageAndSpeed() {
+    unsigned long currentTime = millis();
+    if (lastUpdateTimeGlobal == 0) {
+        lastUpdateTimeGlobal = currentTime;
+    }
+    unsigned long deltaMillis = currentTime - lastUpdateTimeGlobal;
+    lastUpdateTimeGlobal = currentTime;
+    
+    if (mileageEnabled == 1 && startUpWait == 0) {
+        float deltaHours = deltaMillis / 3600000.0;
+        float distanceIncrement = genSpeed * deltaHours;
+        
+        // Use the calibration factor to match the odometer
+        mileageAccumulatorGlobal += distanceIncrement * CALIBRATION_FACTOR;
+        
+        int rawUnitsToAdd = (int)mileageAccumulatorGlobal;
+        if (rawUnitsToAdd > 0) {
+            mileageCounter += rawUnitsToAdd;
+            mileageAccumulatorGlobal -= rawUnitsToAdd;
+        }
+        if (mileageCounter > 255) {
+            mileageCounter = 0;
+        }
+        defaultData[arrSpeed][7] = mileageCounter;
+    }
+    sendMsgWrapper(addrLi[arrSpeed], defaultData[arrSpeed]);
 }
+
 void VolvoDIM::powerOn()
 {
 	pinMode(_relayPin, OUTPUT);
 	digitalWrite(_relayPin, HIGH);
 }
+
 void VolvoDIM::powerOff()
 {
 	pinMode(_relayPin, OUTPUT);
 	digitalWrite(_relayPin, LOW);
 }
+
 void VolvoDIM::init()
 {
 	while (CAN_OK != CAN.begin(CAN_125KBPS, MCP_16MHz))
@@ -280,6 +294,7 @@ void VolvoDIM::init()
 	init4C();
 
 }
+
 void VolvoDIM::simulate()
 {
 	address = addrLi[cnt];
@@ -450,9 +465,6 @@ void VolvoDIM::setCoolantTemp(int range)
 	}
 }
 
-
-
-
 void VolvoDIM::setGasLevel(int level)
 {
 	if (level >= 0 && level <= 100)
@@ -468,21 +480,26 @@ void VolvoDIM::setGasLevel(int level)
 		}
 	}
 }
-void VolvoDIM::setRpm(int rpm)
-{
-	if (rpm > 0 && rpm <= 8000)
-	{
-		defaultData[arrRpm][6] = floor((rpm * .031875) / 32) * 32 + floor((rpm * .031875) / 8);
-	}
-	else
-	{
-		if (enableSerialErrMsg)
-		{
-			// SERIAL.println("RPM out of range");
-		}
-	}
-}
 
+void VolvoDIM::setRpm(int rpm) {
+  // Clamp rpm between 0 and 8000
+  if (rpm < 0)
+    rpm = 0;
+  if (rpm > 8000)
+    rpm = 8000;
+  
+  // Adjusted full-scale constant: 8000 rpm should map to ~31.62 (instead of 24)
+  const float scale = 31.62 / 8000.0;
+  float fixed_point = rpm * scale;  // This gives a value from 0.0 up to ~31.62
+  
+  // Convert to a Q8.8 fixed–point value
+  uint16_t encoded = (uint16_t)round(fixed_point * 256.0);
+  
+  // Byte 6 holds the high byte (the "major" part)
+  defaultData[arrRpm][6] = encoded >> 8;
+  // Byte 7 holds the low byte (the "minor" adjustments)
+  defaultData[arrRpm][7] = encoded & 0xFF;
+}
 
 void VolvoDIM::setSpeed(int carSpeed)
 {
@@ -524,11 +541,10 @@ void VolvoDIM::setSpeed(int carSpeed)
     }
 }
 
-
 void VolvoDIM::enableCruise(int enabled)
 {
     if (enabled == 1) {
-        // TURN CRUISE ON: 3-Key Master Code
+        // TURN CRUISE ON
         defaultData[arrSpeed][0] |= 0x06; // Engine Armed (0x07)
         
         // Switch upper nibble of Byte 5 from '5' to '9'
@@ -537,14 +553,11 @@ void VolvoDIM::enableCruise(int enabled)
         
     } else {
         // TURN CRUISE OFF
-        defaultData[arrSpeed][0] &= ~0x06; // Engine Disarmed (0x05)
-        // Switch upper nibble of Byte 5 from '9' back to '5'
+        defaultData[arrSpeed][0] &= ~0x06; // Engine Disarmed (0x01)
         defaultData[arrSpeed][5] |= 0x40;  // Turn ON bit 6
         defaultData[arrSpeed][5] &= ~0x80; // Turn OFF bit 7
     }
 }
-
-
 
 void VolvoDIM::setTotalBrightness(int value)
 {
@@ -566,7 +579,6 @@ void VolvoDIM::enableHighBeam(int enabled) {
     defaultData[arrRpm][1] = 0xEA;
 }
 
-
 void VolvoDIM::enableBattery(int enabled) 
 {
   if (enabled == 1) {
@@ -577,7 +589,6 @@ void VolvoDIM::enableBattery(int enabled)
     defaultData[arrTime][4] &= ~0x10; 
   }
 }
-
 
 void VolvoDIM::enableFlashingTC(int enabled) 
 {
@@ -644,7 +655,6 @@ void VolvoDIM::enableBrake(int enabled)
     defaultData[arrBrakes][3] = 0x60;
 }
 
-
 void VolvoDIM::enableParkingBrake(int enabled) {
   if (enabled == 1)
     digitalWrite(_parkingBrakePin, HIGH);
@@ -652,15 +662,12 @@ void VolvoDIM::enableParkingBrake(int enabled) {
     digitalWrite(_parkingBrakePin, LOW);
 }
 
-
 void VolvoDIM::enableEngineLight(int enabled) {
   if (enabled == 1)
     digitalWrite(_engineLightPin, HIGH);
   else
     digitalWrite(_engineLightPin, LOW);
 }
-
-
 
 void VolvoDIM::setGearPosText(const char *gear)
 {
@@ -782,8 +789,6 @@ void VolvoDIM::setGearPosInt(int gear)
 		break; // 6th Gear
 	}
 }
-
-
 
 void VolvoDIM::setCustomText(const char* text) {
 	customTextMessage = text;
