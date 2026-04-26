@@ -802,18 +802,26 @@ void VolvoDIM::setCustomText(const char *text) {
     customTextChanged = 1;
 }
 
-// uptightsuperlabs - 4/24/2026 i swear if arduino doesn't support constexpr ima freak
-constexpr unsigned char clearFrame[] = { 0xE1, 0xFE, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+constexpr unsigned char clear_frame[] = { 0xE1, 0xFE, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
 void VolvoDIM::genCustomText() {
-	sendMsgWrapper(addrLi[arrDmWindow], clearFrame);
-	delay(5);
+	if (persistent_custom_text[0] == '\0' || persistent_custom_text[0] == ' ') {
+		sendMsgWrapper(addrLi[arrDmWindow], (unsigned char *)clear_frame);
+		customMessageCnt = 5;
+		return;
+	}
 
-	unsigned char header[8];
-	memcpy(header, defaultData[arrDmWindow], 8);
-	header[7] = 0x31;
-	sendMsgWrapper(addrLi[arrDmWindpw], header);
-	delay(2);
+	if (customMessageCnt == 0) {
+		sendMsgWrapper(addrLi[arrDmWindow], (unsigned char *)clear_frame);
+		delay(5);
+
+		unsigned char header[8];
+		memcpy(header, defaultData[arrDmWindow], 8);
+		header[7] = 0x31;
+
+		sendMsgWrapper(addrLi[arrDmWindow], header);
+		delay(5); // increased delay for now
+	}
 
 	for (int i = 0; i < 4; i++) {
 		unsigned char chunk[8];
@@ -834,7 +842,7 @@ void VolvoDIM::genCustomText() {
 
 		// uptightsuperlabs - 4/24/2026 typos typos typos
 		sendMsgWrapper(addrLi[arrDmMessage], chunk);
-		delay(3);
+		delay(5); // another raised delay, give more time to process frames
 	}
 
 	customMessageCnt++;
