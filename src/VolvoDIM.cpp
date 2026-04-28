@@ -802,39 +802,45 @@ void VolvoDIM::setCustomText(const char *text) {
     customTextChanged = 1;
 }
 
-constexpr unsigned char clear_frame[] = { 0xE1, 0xFE, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-
 void VolvoDIM::genCustomText() {
 	if (persistent_custom_text[0] == '\0' || persistent_custom_text[0] == ' ') {
-		sendMsgWrapper(addrLi[arrDmWindow], (unsigned char *)clear_frame);
+		clearCustomText(); // uptightsuperlabs - 4/8/2026 whoops didn't know these existed
 		customMessageCnt = 5;
 		return;
 	}
 
 	if (customMessageCnt == 0) {
-		sendMsgWrapper(addrLi[arrDmWindow], (unsigned char *)clear_frame);
-		delay(5);
+		clearCustomText();
+		delay(10);
 
 		unsigned char header[8];
 		memcpy(header, defaultData[arrDmWindow], 8);
 		header[7] = 0x31;
-
 		sendMsgWrapper(addrLi[arrDmWindow], header);
-		delay(5); // increased delay for now
+		delay(20); // uptightsuperlabs - 4/28/2026 even higher delay.
 	}
 
-	for (int i = 0; i < 4; i++) {
+	unsigned char frame[8];
+	frame[0] = 0xA7;
+	frame[1] = 0x00;
+
+	memcpy(&frame[2], &persistent_custom_text[0], 6);
+	sendMsgWrapper(addrLi[arrDmMessage], frame);
+	delay(10);
+
+	// uptightsuperlabs - 4/28/2026 made readable + got my head out of my ass.
+	// 								isotp style transport is used rather than sqeuential/static broadcasting...
+	// 								whoops
+	//								i should have been more careful and actually went through the code.																																								
+
+	int text_idx = 6;
+	for (int frame_idx = 0x21; frame_idx <= 0x24; frame_idx++) {
 		unsigned char chunk[8];
-
-		// uptightsuperlabs - 4/24/2026 as far as i can research 0x60 semes to be the sequence index for volvo dims?
-		chunk[0] = 0x60 + i;
-
-		// uptightsuperlabs - 4/24/2026 we can do some pretty gay pointer arithmetic here, it's faster than array indexing
-		char *source = &persistent_custom_text[i * 7];
+		chunk[0] = frame_idx;
 
 		for (int j = 1; j <= 7; j++) {
-			if ((i * 7 + (j - 1)) < 32) {
-				chunk[j] = source[j - 1];
+			if (text_idx < 32) {
+				chunk[j] = persistent_custom_text[text_idx++];
 			} else {
 				chunk[j] = 0x20; // uptightsuperlabs - 4/24/2026 filling the space with 0x20 if the string is short
 			}
@@ -842,7 +848,7 @@ void VolvoDIM::genCustomText() {
 
 		// uptightsuperlabs - 4/24/2026 typos typos typos
 		sendMsgWrapper(addrLi[arrDmMessage], chunk);
-		delay(5); // another raised delay, give more time to process frames
+		delay(15);
 	}
 
 	customMessageCnt++;
